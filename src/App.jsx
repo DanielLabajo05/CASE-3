@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
+import * as tf from '@tensorflow/tfjs';
 import GenderComparisonChart from './services/charts/GenderComparisonChart';
 import StackedBarChart from './services/charts/StackedBarChart';
 import TotalEmigrantsLineChart from './services/charts/LineChart';
 import AgeDistributionHistogram from './services/charts/AgeDistributionHistogram';
 import GeographicChoroplethMap from './services/charts/GeographicWorldMap';
 import OccupationEducationScatterPlot from './services/charts/ScatterPlot';
+import ForecastingComponent from './services/charts/ForecastingComponent';
 import CSVUpload from './services/components/CSVupload';
+
 import { 
   getEmigrantsByGender, 
   bulkAddEmigrants,
@@ -36,6 +39,9 @@ import {
   bulkAddOccupationEmigrants,
   deleteEmigrantByOccupation 
 } from './services/emigrantScatterServices';
+
+// Make TensorFlow available globally
+window.tf = tf;
 
 function App() {
   const [charts, setCharts] = useState([]);
@@ -138,6 +144,19 @@ function App() {
         setCharts(prev => [...prev, occupationChart]);
       }
 
+      // Load forecast chart (uses total historical data for training)
+      console.log("Preparing forecast chart with total historical data...");
+      if (totalData.length > 0) {
+        const forecastChart = {
+          id: 'firebase-forecast-' + Date.now(),
+          type: 'forecast',
+          data: totalData, // ✅ Use historical total data, not forecast data
+          isFromFirebase: true,
+          createdAt: new Date()
+        };
+        setCharts(prev => [...prev, forecastChart]);
+      }
+
       // Hide upload if we have data
       if (genderData.length > 0 || educationData.length > 0 || totalData.length > 0 || ageData.length > 0 || geoData.length > 0 || occupationData.length > 0) {
         setShowUpload(false);
@@ -188,6 +207,7 @@ function App() {
           const result = await bulkAddOccupationEmigrants(data);
           console.log(`Successfully saved ${result.count} occupation records to Firebase`);
         }
+        // Note: 'forecast' type is not saved separately - it uses historical total data
       } catch (firebaseError) {
         console.error("Firebase save error:", firebaseError);
         console.error("Error code:", firebaseError.code);
@@ -253,6 +273,9 @@ function App() {
             return deleteEmigrantByGeography(record.id);
           } else if (chartToRemove.type === 'occupation' || chartToRemove.type === 'occupation-education') {
             return deleteEmigrantByOccupation(record.id);
+          } else if (chartToRemove.type === 'forecast') {
+            // Don't delete historical data when removing forecast chart
+            return Promise.resolve();
           }
           return Promise.resolve();
         });
@@ -295,6 +318,9 @@ function App() {
               return deleteEmigrantByGeography(record.id);
             } else if (chart.type === 'occupation' || chart.type === 'occupation-education') {
               return deleteEmigrantByOccupation(record.id);
+            } else if (chart.type === 'forecast') {
+              // Don't delete historical data when clearing forecast chart
+              return Promise.resolve();
             }
             return Promise.resolve();
           });
@@ -364,9 +390,11 @@ function App() {
             <p style={{ color: '#666', marginBottom: 5 }}>
               Upload CSV files to create multiple visualization charts
             </p>
-            <p style={{ color: '#999', fontSize: 14, marginBottom: 0 }}>
-              ☁️ Data is automatically saved to Firebase Cloud Storage
-            </p>
+            <div style={{ display: 'flex', gap: 15, alignItems: 'center' }}>
+              <p style={{ color: '#999', fontSize: 14, marginBottom: 0 }}>
+                ☁️ Data is automatically saved to Firebase Cloud Storage
+              </p>
+            </div>
           </div>
           {charts.length > 0 && (
             <button
@@ -679,6 +707,29 @@ function App() {
                     </div>
                     <GeographicChoroplethMap 
                       data={chart.data} 
+                      onRemove={handleRemoveChart}
+                      chartId={chart.id}
+                    />
+                  </div>
+                ) : chart.type === 'forecast' ? (
+                  <div style={{
+                    backgroundColor: 'white',
+                    padding: 20,
+                    borderRadius: 8,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    position: 'relative'
+                  }}>
+                    {chart.isFromFirebase && (
+                      <div style={{ 
+                        fontSize: 12,
+                        color: '#666',
+                        marginBottom: 10
+                      }}>
+                        ☁️ Using Historical Data from Firebase
+                      </div>
+                    )}
+                    <ForecastingComponent 
+                      historicalData={chart.data}
                       onRemove={handleRemoveChart}
                       chartId={chart.id}
                     />

@@ -97,6 +97,9 @@ const CSVUpload = ({ onUploadComplete }) => {
           }
         } else if (dataType === "gender") {
           transformedData = parseGenderDataFromArray(results.data);
+        } else if (dataType === "forecast") {
+          // Parse forecast data - expects Year,Value format or Year,Total format
+          transformedData = parseForecastDataFromArray(results.data);
         }
         
         if (transformedData.length === 0) {
@@ -338,6 +341,40 @@ const CSVUpload = ({ onUploadComplete }) => {
       .filter(row => !isNaN(row.year) && !isNaN(row.total));
   };
 
+  const parseForecastDataFromArray = (data) => {
+    console.log("=== Parsing Forecast Data from Array ===");
+    
+    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    console.log("Headers:", headers);
+    
+    const yearIdx = headers.findIndex(h => h.includes('year'));
+    
+    // Look for value column - could be 'value', 'total', 'count', etc.
+    const valueIdx = headers.findIndex(h => 
+      h.includes('value') || 
+      h.includes('total') || 
+      h.includes('count') ||
+      h.includes('emigrants')
+    );
+    
+    console.log("Column indices - Year:", yearIdx, "Value:", valueIdx);
+    
+    if (yearIdx === -1 || valueIdx === -1) {
+      console.log("Could not find required columns for forecast data");
+      return [];
+    }
+    
+    const results = data.slice(1)
+      .map(row => ({
+        year: parseInt(row[yearIdx]),
+        value: parseFloat(row[valueIdx]) || 0
+      }))
+      .filter(row => !isNaN(row.year) && !isNaN(row.value));
+    
+    console.log("First 5 parsed forecast results:", results.slice(0, 5));
+    return results;
+  };
+
   const parseGeographicDataFromArray = (data) => {
     console.log("=== Parsing Geographic Data from Array ===");
     
@@ -493,9 +530,11 @@ const CSVUpload = ({ onUploadComplete }) => {
     return merged;
   };
 
-  const handleConfirmUpload = () => {
+  const handleConfirmUpload = (chartType) => {
     if (preview) {
-      onUploadComplete(preview, selectedChartType);
+      // Use the provided chartType if given, otherwise use selectedChartType
+      const finalChartType = chartType || selectedChartType;
+      onUploadComplete(preview, finalChartType);
       resetUpload();
     }
   };
@@ -538,15 +577,16 @@ const CSVUpload = ({ onUploadComplete }) => {
           { label: 'Education Data:', type: 'education' },
           { label: 'Age Distribution Data:', type: 'age' },
           { label: 'Sex Distribution Data:', type: 'gender' },
-          { label: 'Total Emigrants Data:', type: 'total' }
-        ].map(({ label, type }) => (
+          { label: 'Total Emigrants Data:', type: 'total' },
+          { label: '🤖 ML Forecasting Data:', type: 'forecast', highlight: true }
+        ].map(({ label, type, highlight }) => (
           <div key={type}>
             <label style={{ 
               display: 'block', 
               marginBottom: 8,
               fontSize: 14,
               fontWeight: 500,
-              color: '#333'
+              color: highlight ? '#9C27B0' : '#333'
             }}>
               {label}
             </label>
@@ -559,12 +599,35 @@ const CSVUpload = ({ onUploadComplete }) => {
                 width: '100%',
                 padding: '8px',
                 fontSize: 14,
-                border: '1px solid #ddd',
-                borderRadius: 4
+                border: highlight ? '2px solid #9C27B0' : '1px solid #ddd',
+                borderRadius: 4,
+                backgroundColor: highlight ? '#f3e5f5' : 'white'
               }}
             />
           </div>
         ))}
+      </div>
+
+      <div style={{
+        marginTop: 20,
+        padding: 15,
+        backgroundColor: '#f3e5f5',
+        borderRadius: 8,
+        border: '2px dashed #9C27B0',
+        marginBottom: 20
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <span style={{ fontSize: 20 }}>🤖</span>
+          <h4 style={{ margin: 0, color: '#9C27B0', fontSize: 14 }}>
+            ML Forecasting Data Requirements
+          </h4>
+        </div>
+        <p style={{ margin: '0 0 8px 0', fontSize: 13, color: '#666' }}>
+          Upload time-series data with <strong>Year</strong> and <strong>Value</strong> columns for machine learning forecasting.
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: '#7B1FA2', fontStyle: 'italic' }}>
+          Example: Year,Total | 1981,50000 | 1982,52000 | ...
+        </p>
       </div>
 
       <div style={{
@@ -708,6 +771,11 @@ const CSVUpload = ({ onUploadComplete }) => {
                       <th style={{ padding: 8, border: '1px solid #ddd' }}>Age Group</th>
                       <th style={{ padding: 8, border: '1px solid #ddd' }}>Count</th>
                     </>
+                  ) : selectedChartType === "forecast" ? (
+                    <>
+                      <th style={{ padding: 8, border: '1px solid #ddd' }}>Year</th>
+                      <th style={{ padding: 8, border: '1px solid #ddd' }}>Value</th>
+                    </>
                   ) : selectedChartType === "occupation" ? (
                     <>
                       <th style={{ padding: 8, border: '1px solid #ddd' }}>Year</th>
@@ -757,6 +825,11 @@ const CSVUpload = ({ onUploadComplete }) => {
                         <td style={{ padding: 8, border: '1px solid #ddd' }}>{row.ageGroup}</td>
                         <td style={{ padding: 8, border: '1px solid #ddd' }}>{row.count.toLocaleString()}</td>
                       </>
+                    ) : selectedChartType === "forecast" ? (
+                      <>
+                        <td style={{ padding: 8, border: '1px solid #ddd' }}>{row.year}</td>
+                        <td style={{ padding: 8, border: '1px solid #ddd' }}>{row.value.toLocaleString()}</td>
+                      </>
                     ) : selectedChartType === "occupation" ? (
                       <>
                         <td style={{ padding: 8, border: '1px solid #ddd' }}>{row.year}</td>
@@ -798,7 +871,8 @@ const CSVUpload = ({ onUploadComplete }) => {
               marginTop: 20, 
               display: 'flex', 
               gap: 10,
-              justifyContent: 'flex-end'
+              justifyContent: 'flex-end',
+              flexWrap: 'wrap'
             }}>
               <button
                 onClick={handleCancel}
@@ -816,21 +890,59 @@ const CSVUpload = ({ onUploadComplete }) => {
                 Cancel
               </button>
 
-              <button
-                onClick={handleConfirmUpload}
-                style={{ 
-                  padding: '10px 24px', 
-                  background: "#1976d2", 
-                  color: "#fff", 
-                  border: "none", 
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: 14
-                }}
-              >
-                Add Chart to Dashboard
-              </button>
+              {selectedChartType === 'forecast' ? (
+                // For forecast data, only show the ML forecasting button
+                <button
+                  onClick={() => handleConfirmUpload('forecast')}
+                  style={{ 
+                    padding: '10px 24px', 
+                    background: "#9C27B0", 
+                    color: "#fff", 
+                    border: "none", 
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14
+                  }}
+                >
+                  🤖 Create ML Forecasting Chart
+                </button>
+              ) : (
+                // For other data types, show both options
+                <>
+                  <button
+                    onClick={() => handleConfirmUpload()}
+                    style={{ 
+                      padding: '10px 24px', 
+                      background: "#1976d2", 
+                      color: "#fff", 
+                      border: "none", 
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 14
+                    }}
+                  >
+                    Add Chart to Dashboard
+                  </button>
+
+                  <button
+                    onClick={() => handleConfirmUpload('forecast')}
+                    style={{ 
+                      padding: '10px 24px', 
+                      background: "#9C27B0", 
+                      color: "#fff", 
+                      border: "none", 
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 14
+                    }}
+                  >
+                    🤖 Add ML Forecasting Chart
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </>

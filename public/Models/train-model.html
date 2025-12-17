@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TensorFlow.js Model Trainer - Filipino Emigrants</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-2xl shadow-2xl p-8">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-8">
+                <h1 class="text-4xl font-bold text-gray-800">
+                    🧠 TensorFlow.js Model Trainer
+                </h1>
+                <div class="text-sm text-gray-500 text-right">
+                    <div>Filipino Emigrants</div>
+                    <div>Forecasting Model</div>
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div id="statusCard" class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl p-6 mb-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90 mb-1">Status</p>
+                        <p id="statusText" class="text-2xl font-bold">Ready</p>
+                    </div>
+                    <div id="statusEmoji" class="text-5xl">🎯</div>
+                </div>
+                <p id="progressText" class="mt-3 text-sm opacity-90"></p>
+            </div>
+
+            <!-- Data Info -->
+            <div class="bg-gray-50 rounded-xl p-6 mb-6">
+                <h2 class="font-semibold text-gray-700 mb-4">📊 Training Data Information</h2>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <p class="text-3xl font-bold text-blue-600" id="dataPoints">24</p>
+                        <p class="text-sm text-gray-600 mt-1">Data Points</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <p class="text-3xl font-bold text-green-600" id="yearRange">2000-2023</p>
+                        <p class="text-sm text-gray-600 mt-1">Year Range</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <p class="text-3xl font-bold text-purple-600">LSTM</p>
+                        <p class="text-sm text-gray-600 mt-1">Model Type</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Train Button -->
+            <button 
+                id="trainButton"
+                onclick="startTraining()"
+                class="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-5 px-6 rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] mb-6 text-lg"
+            >
+                🚀 Start Training Model
+            </button>
+
+            <!-- Metadata Download Button (hidden initially) -->
+            <button 
+                id="downloadMetadataBtn"
+                onclick="downloadMetadata()"
+                class="w-full bg-blue-500 text-white font-bold py-4 px-6 rounded-xl hover:bg-blue-600 transition-all duration-200 shadow-lg mb-6 hidden"
+            >
+                📥 Download model-metadata.json
+            </button>
+
+            <!-- Instructions -->
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-6 rounded-r-lg">
+                <h3 class="font-bold text-yellow-800 mb-3 text-lg">📝 Instructions (Please Read!)</h3>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-yellow-700">
+                    <li>Click the <strong>"Start Training"</strong> button above</li>
+                    <li>Wait 1-2 minutes for training to complete</li>
+                    <li>Two files will download automatically:
+                        <ul class="ml-8 mt-2 space-y-1 list-disc">
+                            <li><code class="bg-yellow-100 px-2 py-1 rounded">filipino-emigrant-model.json</code></li>
+                            <li><code class="bg-yellow-100 px-2 py-1 rounded">filipino-emigrant-model.weights.bin</code></li>
+                        </ul>
+                    </li>
+                    <li>Click <strong>"Download model-metadata.json"</strong> button when it appears</li>
+                    <li>In your project, create folder: <code class="bg-yellow-100 px-2 py-1 rounded">public/models/</code></li>
+                    <li>Move all 3 downloaded files into <code class="bg-yellow-100 px-2 py-1 rounded">public/models/</code></li>
+                    <li>Restart your React app to use the trained model! 🎉</li>
+                </ol>
+            </div>
+
+            <!-- Training Logs -->
+            <div class="bg-gray-900 text-gray-100 rounded-xl p-6 max-h-96 overflow-y-auto">
+                <h3 class="font-bold mb-4 text-green-400 text-lg flex items-center">
+                    <span class="mr-2">📋</span> Training Logs
+                </h3>
+                <div id="logs" class="space-y-1 font-mono text-xs">
+                    <p class="text-gray-500">Waiting to start training...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Historical data for training
+        const historicalData = [
+            { year: 2000, value: 120000 },
+            { year: 2001, value: 125000 },
+            { year: 2002, value: 130000 },
+            { year: 2003, value: 135000 },
+            { year: 2004, value: 142000 },
+            { year: 2005, value: 150000 },
+            { year: 2006, value: 158000 },
+            { year: 2007, value: 165000 },
+            { year: 2008, value: 172000 },
+            { year: 2009, value: 168000 },
+            { year: 2010, value: 175000 },
+            { year: 2011, value: 182000 },
+            { year: 2012, value: 190000 },
+            { year: 2013, value: 198000 },
+            { year: 2014, value: 205000 },
+            { year: 2015, value: 212000 },
+            { year: 2016, value: 220000 },
+            { year: 2017, value: 228000 },
+            { year: 2018, value: 235000 },
+            { year: 2019, value: 242000 },
+            { year: 2020, value: 230000 },
+            { year: 2021, value: 245000 },
+            { year: 2022, value: 255000 },
+            { year: 2023, value: 265000 },
+        ];
+
+        let modelMetadata = null;
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logsDiv = document.getElementById('logs');
+            
+            const colorClass = type === 'error' ? 'text-red-400' :
+                              type === 'success' ? 'text-green-400' :
+                              type === 'warning' ? 'text-yellow-400' :
+                              'text-gray-300';
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = colorClass;
+            logEntry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
+            
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function updateStatus(status, emoji, progress = '') {
+            document.getElementById('statusText').textContent = status;
+            document.getElementById('statusEmoji').textContent = emoji;
+            document.getElementById('progressText').textContent = progress;
+        }
+
+        function normalizeData(data) {
+            const values = data.map(d => d.value);
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            
+            const normalized = data.map(d => ({
+                year: d.year,
+                normalizedValue: (d.value - min) / (max - min)
+            }));
+            
+            return { normalized, min, max };
+        }
+
+        function createSequences(data, sequenceLength = 3) {
+            const sequences = [];
+            const targets = [];
+            
+            for (let i = 0; i < data.length - sequenceLength; i++) {
+                const sequence = data.slice(i, i + sequenceLength).map(d => d.normalizedValue);
+                const target = data[i + sequenceLength].normalizedValue;
+                sequences.push(sequence);
+                targets.push(target);
+            }
+            
+            return { sequences, targets };
+        }
+
+        function createModel(sequenceLength) {
+            const model = tf.sequential();
+            
+            model.add(tf.layers.lstm({
+                units: 50,
+                returnSequences: false,
+                inputShape: [sequenceLength, 1]
+            }));
+            
+            model.add(tf.layers.dropout({ rate: 0.2 }));
+            model.add(tf.layers.dense({ units: 25, activation: 'relu' }));
+            model.add(tf.layers.dense({ units: 1 }));
+            
+            model.compile({
+                optimizer: tf.train.adam(0.001),
+                loss: 'meanSquaredError',
+                metrics: ['mae']
+            });
+            
+            return model;
+        }
+
+        async function startTraining() {
+            const button = document.getElementById('trainButton');
+            button.disabled = true;
+            button.innerHTML = '⏳ Training in Progress...';
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            document.getElementById('logs').innerHTML = '';
+            updateStatus('Training', '⚡', 'Initializing...');
+            addLog('🚀 Starting model training...', 'success');
+
+            try {
+                // Normalize data
+                const { normalized, min, max } = normalizeData(historicalData);
+                addLog(`✅ Normalized ${historicalData.length} data points`, 'success');
+                
+                // Create sequences
+                const sequenceLength = 3;
+                const { sequences, targets } = createSequences(normalized, sequenceLength);
+                addLog(`✅ Created ${sequences.length} training sequences`, 'success');
+                
+                // Convert to tensors
+                const xs = tf.tensor3d(sequences.map(seq => seq.map(val => [val])));
+                const ys = tf.tensor2d(targets, [targets.length, 1]);
+                
+                // Create model
+                const model = createModel(sequenceLength);
+                addLog('✅ Model architecture created', 'success');
+                addLog('📊 Model: LSTM(50) → Dropout(0.2) → Dense(25) → Dense(1)', 'info');
+                
+                // Train model
+                updateStatus('Training', '🏋️', 'Training model (100 epochs)...');
+                addLog('🏋️ Training started with 100 epochs...', 'warning');
+                
+                await model.fit(xs, ys, {
+                    epochs: 100,
+                    batchSize: 4,
+                    validationSplit: 0.2,
+                    callbacks: {
+                        onEpochEnd: (epoch, logs) => {
+                            if (epoch % 10 === 0) {
+                                updateStatus('Training', '⚡', 
+                                    `Epoch ${epoch}/100 - Loss: ${logs.loss.toFixed(4)}`);
+                                addLog(`Epoch ${epoch}: loss=${logs.loss.toFixed(4)}, val_loss=${logs.val_loss.toFixed(4)}`);
+                            }
+                        }
+                    }
+                });
+                
+                addLog('✅ Model training complete!', 'success');
+                
+                // Save model
+                updateStatus('Saving', '💾', 'Saving model files...');
+                addLog('💾 Saving model to Downloads...', 'warning');
+                await model.save('downloads://filipino-emigrant-model');
+                addLog('✅ Model files saved to Downloads folder!', 'success');
+                
+                // Create metadata
+                modelMetadata = {
+                    sequenceLength,
+                    min,
+                    max,
+                    trainedOn: new Date().toISOString(),
+                    epochs: 100,
+                    dataPoints: historicalData.length,
+                    modelType: 'LSTM',
+                    framework: 'TensorFlow.js'
+                };
+                
+                addLog('✅ Metadata generated', 'success');
+                
+                // Show download button
+                document.getElementById('downloadMetadataBtn').classList.remove('hidden');
+                
+                // Test prediction
+                addLog('🔮 Testing prediction...', 'warning');
+                const lastData = historicalData.slice(-3);
+                const normalizedInput = lastData.map(d => 
+                    (d.value - min) / (max - min)
+                );
+                const inputTensor = tf.tensor3d([normalizedInput.map(val => [val])]);
+                const prediction = model.predict(inputTensor);
+                const normalizedPrediction = await prediction.data();
+                const predictedValue = normalizedPrediction[0] * (max - min) + min;
+                
+                addLog(`🎯 Test prediction for 2024: ${Math.round(predictedValue).toLocaleString()} emigrants`, 'success');
+                
+                // Clean up
+                xs.dispose();
+                ys.dispose();
+                inputTensor.dispose();
+                prediction.dispose();
+                
+                updateStatus('Complete', '✅', 'Training successful! Check Downloads folder.');
+                addLog('🎉 All done! Follow the instructions above to use your model.', 'success');
+                
+                button.innerHTML = '✅ Training Complete!';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                addLog(`❌ Error: ${error.message}`, 'error');
+                updateStatus('Error', '❌', 'Training failed - see logs');
+                button.disabled = false;
+                button.innerHTML = '🚀 Start Training Model';
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function downloadMetadata() {
+            if (!modelMetadata) {
+                addLog('⚠️ No metadata available', 'warning');
+                return;
+            }
+            
+            const dataStr = JSON.stringify(modelMetadata, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', 'model-metadata.json');
+            linkElement.click();
+            
+            addLog('✅ model-metadata.json downloaded!', 'success');
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            addLog('✅ TensorFlow.js loaded successfully!', 'success');
+            addLog(`📦 Version: ${tf.version.tfjs}`, 'info');
+            addLog('👉 Click "Start Training" to begin', 'info');
+        });
+    </script>
+</body>
+</html>

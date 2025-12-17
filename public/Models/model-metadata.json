@@ -1,0 +1,10 @@
+{
+  "sequenceLength": 3,
+  "min": 120000,
+  "max": 265000,
+  "trainedOn": "2025-12-10T02:04:15.605Z",
+  "epochs": 100,
+  "dataPoints": 24,
+  "modelType": "LSTM",
+  "framework": "TensorFlow.js"
+}
